@@ -7,8 +7,6 @@ known_fact(zona(c,b)).
 known_fact(brat(b,c)).
 
 
-
-
 item(ItemNo, [LF|LR], Ret):-
 	ItemNo>0,
 	ItemNoNew is ItemNo - 1,
@@ -47,6 +45,7 @@ build_arg_list(1, vars(LastUsed, LastLocal), no, [LastArg], LastLocal) :-
 	between(0, LastUsed, X),
 	variables(Variables),
 	item(X, Variables, LastArg).
+
 % Sprawdza dopasowanie listy argumentów wyrażenia predykatowego z poprzednika i listy argumentów faktu
 % operacyjnego w kontekście dotychczasowych związań zmiennych. W przypadku powodzenia jako wynik
 % zwraca uzupełnioną listę związań zmiennych.
@@ -60,18 +59,14 @@ match_arg_lists([Arg1|Rest1], [Arg2|Rest2], BindingsIn, BindingsOut) :-
 % symbolu z faktu operacyjnego. W przypadku powodzenia jako wynik zwraca uzupełnioną listę związań
 % zmiennych.
 
-match_args(Arg1, Arg2, [], [binding(Arg1, Arg2)]).
+match_args(Arg1, Arg2, [], [binding(Arg1, Arg2)]):-!.
 
-match_args(Arg1, Arg2, [binding(Arg1, Arg2)|Rest], [binding(Arg1, Arg2)|Rest]).
+match_args(Arg1, Arg2, [binding(Arg1, Arg2)|Rest], [binding(Arg1, Arg2)|Rest]):-!.
 
 match_args(Arg1, Arg2, [binding(A,V)|Rest], [F|Ret]):-
-	A \= Arg1,
-	V \= Arg2,
+	Arg1 \= A,
+	Arg2 \= V,
 	match_args(Arg1, Arg2, Rest, Ret).
-
-
-
-
 
 
 %Poszukuje pokrycia w faktach operacyjnych dla pojedynczego prostego wyrażenia predykatowego z
@@ -157,4 +152,31 @@ learn_rules(PosExamples, NegExamples, Conseq, VarsIndex, [Rule | RestRules]) :-
 	learn_one_rule( PosExamples, NegExamples, rule(Conseq, [ ]), VarsIndex, Rule ) ,
 	remove( PosExamples, Rule, RestPosExamples),
 	learn_rules(RestPosExamples, NegExamples, Conseq, VarsIndex, RestRules) .
+	
+member1(X,[X|_]).
+member1(X,[Y|Rest]) :-
+    member1(X, Rest).
 
+filter( Examples, Rule, FilteredExamples) :-
+    findall( Example, (member1(Example, Examples), covers(Rule, Example)), FilteredExamples).
+	
+
+scored_rule( PosExamples, NegExamples, PartialRule, LastUsed, rule_descr(CandPartialRule, Score, RetLastUsed) ) :-
+	candidate_rule(PartialRule, PosExamples, NegExamples, LastUsed, CandPartialRule, RetLastUsed),
+	filter( PosExamples, CandPartialRule, PosExamples1),
+	filter( NegExamples, CandPartialRule, NegExamples1),
+	length( PosExamples1, NPos),
+	length(NegExamples1, NNeg),
+	NPos > 0,
+	Score is NPos - NNeg.
+	
+
+candidate_rule(rule(Conseq, Anteced), PosExamples, NegExamples, LastUsed, rule(Conseq, [Expr|Anteced]), RetLastUsed) :-
+	build_expr(LastUsed, Expr, RetLastUsed),
+	suitable(rule(Conseq, [Expr|Anteced]), NegExamples) .
+	
+
+build_expr(LastUsed,Expr,RetLastUsed) :-
+	predicate(Pred, N),
+	build_arg_list(N, vars(LastUsed, LastUsed), false, ArgList, RetLastUsed),
+	Expr =.. [Pred|ArgList] .

@@ -240,9 +240,10 @@ not_fitting([], Args).
 gen_negative_examples(Positive, Conseq, NotFittingList):-
 	findall(NegExample, (functor(Conseq, Functor, N), gen_arg_list(N, GenArgs), not_fitting(Positive, GenArgs), NegExample =..[Functor| GenArgs] ),NotFittingList).
 
-learn(Conseq, NotFittingList) :-
+learn(Conseq, Rules) :-
 	functor(Conseq, Functor,N),
 	findall(A, (known_fact(A) ,functor(A,Functor,N)),Positive),
-	gen_negative_examples(Positive, Conseq, Negative).
+	gen_negative_examples(Positive, Conseq, Negative),
+	learn_rules(Positive, Negative, Conseq, 0, Rules).
 	
 	

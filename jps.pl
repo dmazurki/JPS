@@ -152,7 +152,7 @@ filter( Examples, Rule, FilteredExamples) :-
 %eliminuje przynajmniej jeden przykład negatywny.
 suitable(rule(Conseq,Anteced),NegExamples):- 
 	member1(Example,NegExamples), 
-	not(covers(rule(Conseq,Anteced),NegExample)).
+	not(covers(rule(Conseq,Anteced),NegExamples)).
 
 
 build_expr(LastUsed,Expr,RetLastUsed) :-

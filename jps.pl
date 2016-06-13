@@ -1,11 +1,15 @@
 variables([a, b, c, d, e]).
 
-known_fact(maz(a,b)).
-known_fact(brat(c,b)).
-known_fact(szwagier(a,c)).
-known_fact(zona(c,b)).
-known_fact(brat(b,c)).
+known_fact(rodzic(a,b)).
+known_fact(siostra(c,a)).
+known_fact(brat(d,a)).
+known_fact(ciocia(c,b)).
+known_fact(wujek(d,b)).
 
+predicate(rodzic,2).
+predicate(siostra,2).
+predicate(ciocia,2).
+predicate(wujek,2).
 
 item(ItemNo, [LF|LR], Ret):-
 	ItemNo>0,
@@ -63,10 +67,14 @@ match_args(Arg1, Arg2, [], [binding(Arg1, Arg2)]):-!.
 
 match_args(Arg1, Arg2, [binding(Arg1, Arg2)|Rest], [binding(Arg1, Arg2)|Rest]):-!.
 
-match_args(Arg1, Arg2, [binding(A,V)|Rest], [F|Ret]):-
+match_args(Arg1, Arg2, [binding(A,V)|Rest], [binding(A,V)|Ret]):-
 	Arg1 \= A,
 	Arg2 \= V,
 	match_args(Arg1, Arg2, Rest, Ret).
+
+%match_args(X,Y,[],[binding(X,Y)]):-!.
+%match_args(X,Y,[binding(X,Y)|Bindings],[binding(X,Y)|Bindings]):-!.
+%match_args(Arg1,Arg2,[binding(X,Y)|Bindings],[binding(X,Y)|NewBindings]):- Arg1\=X,Arg2\=Y,match_args(Arg1,Arg2,Bindings,NewBindings).
 
 
 %Poszukuje pokrycia w faktach operacyjnych dla pojedynczego prostego wyrażenia predykatowego z
@@ -115,6 +123,57 @@ remove([FirstEx|RestEx],Rule,RestPosExamples):-
 remove([FirstEx|RestEx],Rule,[FirstEx|Rest]):-
 	remove(RestEx,Rule,Rest).
 
+
+/******************************************************************************************************************************************
+* choose_best(Rules,BestRule,RetLastUsed) 
+******************************************************************************************************************************************/
+
+choose_best(Rules,BestRule,RetLastUsed):-maxscore_rule(Rules,rule_descr(BestRule,_,RetLastUsed)).
+
+maxscore_rule([Rule], Rule).
+
+maxscore_rule([rule_descr(Rule1,Score1,LastUsed1)|Rest], rule_descr(Rule1,Score1,LastUsed1)):-
+	maxscore_rule(Rest, rule_descr(Rule2,Score2,LastUsed2)),
+	Score1>Score2.
+
+maxscore_rule([rule_descr(Rule1,Score1,LastUsed1)|Rest], rule_descr(Rule2,Score2,LastUsed2)):-
+	maxscore_rule(Rest, rule_descr(Rule2,Score2,LastUsed2)),
+	Score1=<Score2.
+
+member1(X,[X|_]).
+member1(X,[Y|Rest]) :-
+    member1(X, Rest).
+
+filter( Examples, Rule, FilteredExamples) :-
+    findall( Example, (member1(Example, Examples), covers(Rule, Example)), FilteredExamples).
+	
+
+%Procedura sprawdza jeden z warunków wstępnych przydatności zbudowanej reguły cząstkowej: czy reguła
+%eliminuje przynajmniej jeden przykład negatywny.
+suitable(rule(Conseq,Anteced),NegExamples):- 
+	member1(Example,NegExamples), 
+	not(covers(rule(Conseq,Anteced),NegExample)).
+
+
+build_expr(LastUsed,Expr,RetLastUsed) :-
+	predicate(Pred, N),
+	build_arg_list(N, vars(LastUsed, LastUsed), false, ArgList, RetLastUsed),
+	Expr =.. [Pred|ArgList] .
+
+candidate_rule(rule(Conseq, Anteced), PosExamples, NegExamples, LastUsed, rule(Conseq, [Expr|Anteced]), RetLastUsed) :-
+	build_expr(LastUsed, Expr, RetLastUsed),
+	suitable(rule(Conseq, [Expr|Anteced]), NegExamples) .
+	
+
+scored_rule( PosExamples, NegExamples, PartialRule, LastUsed, rule_descr(CandPartialRule, Score, RetLastUsed) ) :-
+	candidate_rule(PartialRule, PosExamples, NegExamples, LastUsed, CandPartialRule, RetLastUsed),
+	filter( PosExamples, CandPartialRule, PosExamples1),
+	filter( NegExamples, CandPartialRule, NegExamples1),
+	length( PosExamples1, NPos),
+	length(NegExamples1, NNeg),
+	NPos > 0,
+	Score is NPos - NNeg.
+	
 %Wykonuje krok budowania koniunktywnego poprzednika reguły, tworząc nową regułę cząstkową. Spośród
 %wszystkich możliwych nowych reguł cząstkowych, powstałych przez dodanie do dotychczas zbudowanej
 %koniunkcji nowego wyrażenia predykatowego, jest wybierana reguła o najwyższej ocenie heurystycznej.
@@ -135,7 +194,7 @@ new_partial_rule( PosExamples, NegExamples, PartialRule, LastUsed, BestRule, Ret
 learn_one_rule( _ , [ ] , Rule, _ , Rule).
 
 learn_one_rule( PosExamples, NegExamples, PartialRule, LastUsed, Rule ) :-
-	new_partial_rule( PosExamples, NegExamples, LastUsed, NewPartialRule, NewLastUsed) ,
+	new_partial_rule( PosExamples, NegExamples, PartialRule, LastUsed, NewPartialRule, NewLastUsed) ,
 	filter( PosExamples, NewPartialRule, PosExamples1),
 	filter( NegExamples, NewPartialRule, NegExamples1),
 	learn_one_rule( PosExamples1, NegExamples1, NewPartialRule, NewLastUsed, Rule ) .
@@ -152,31 +211,38 @@ learn_rules(PosExamples, NegExamples, Conseq, VarsIndex, [Rule | RestRules]) :-
 	learn_one_rule( PosExamples, NegExamples, rule(Conseq, [ ]), VarsIndex, Rule ) ,
 	remove( PosExamples, Rule, RestPosExamples),
 	learn_rules(RestPosExamples, NegExamples, Conseq, VarsIndex, RestRules) .
-	
-member1(X,[X|_]).
-member1(X,[Y|Rest]) :-
-    member1(X, Rest).
 
-filter( Examples, Rule, FilteredExamples) :-
-    findall( Example, (member1(Example, Examples), covers(Rule, Example)), FilteredExamples).
-	
+gen_arg_list(N, Result) :-
+	variables(Variables),
+	gen_args(Variables, N, Result).
 
-scored_rule( PosExamples, NegExamples, PartialRule, LastUsed, rule_descr(CandPartialRule, Score, RetLastUsed) ) :-
-	candidate_rule(PartialRule, PosExamples, NegExamples, LastUsed, CandPartialRule, RetLastUsed),
-	filter( PosExamples, CandPartialRule, PosExamples1),
-	filter( NegExamples, CandPartialRule, NegExamples1),
-	length( PosExamples1, NPos),
-	length(NegExamples1, NNeg),
-	NPos > 0,
-	Score is NPos - NNeg.
-	
+gen_args(ArgList, 0, []).
 
-candidate_rule(rule(Conseq, Anteced), PosExamples, NegExamples, LastUsed, rule(Conseq, [Expr|Anteced]), RetLastUsed) :-
-	build_expr(LastUsed, Expr, RetLastUsed),
-	suitable(rule(Conseq, [Expr|Anteced]), NegExamples) .
-	
+gen_args(ArgList, N, [Arg|Rest]):-
+	member(Arg, ArgList),
+	N>0,
+	N2 is N - 1,
+        gen_args(ArgList, N2, Rest).
 
-build_expr(LastUsed,Expr,RetLastUsed) :-
-	predicate(Pred, N),
-	build_arg_list(N, vars(LastUsed, LastUsed), false, ArgList, RetLastUsed),
-	Expr =.. [Pred|ArgList] .
+
+
+check_args_not_fitting([Arg|Rest1],[Arg|Rest2]) :- check_args_not_fitting(Rest1,Rest2).
+check_args_not_fitting([Arg1|Rest1],[Arg2|Rest2]) :- Arg1 \= Arg2.
+
+
+not_fitting([Positive|Rest], Args):-
+	Positive =.. [_|PosArgs],
+	check_args_not_fitting(PosArgs,Args),
+	not_fitting(Rest, Args).
+not_fitting([], Args).
+
+
+gen_negative_examples(Positive, Conseq, NotFittingList):-
+	findall(NegExample, (functor(Conseq, Functor, N), gen_arg_list(N, GenArgs), not_fitting(Positive, GenArgs), NegExample =..[Functor| GenArgs] ),NotFittingList).
+
+learn(Conseq, NotFittingList) :-
+	functor(Conseq, Functor,N),
+	findall(A, (known_fact(A) ,functor(A,Functor,N)),Rules),
+	gen_negative_examples(Rules, Conseq, NotFittingList).
+	
+	

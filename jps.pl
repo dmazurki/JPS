@@ -242,7 +242,7 @@ gen_negative_examples(Positive, Conseq, NotFittingList):-
 
 learn(Conseq, NotFittingList) :-
 	functor(Conseq, Functor,N),
-	findall(A, (known_fact(A) ,functor(A,Functor,N)),Rules),
-	gen_negative_examples(Rules, Conseq, NotFittingList).
+	findall(A, (known_fact(A) ,functor(A,Functor,N)),Positive),
+	gen_negative_examples(Positive, Conseq, Negative).
 	
 	

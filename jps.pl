@@ -1,15 +1,6 @@
-variables([a, b, c, d, e]).
+variables([a, b, c, d, e, f, g, h]).
 
-known_fact(rodzic(a,b)).
-known_fact(siostra(c,a)).
-known_fact(brat(d,a)).
-known_fact(ciocia(c,b)).
-known_fact(wujek(d,b)).
 
-predicate(rodzic,2).
-predicate(siostra,2).
-predicate(ciocia,2).
-predicate(wujek,2).
 
 item(ItemNo, [LF|LR], Ret):-
 	ItemNo>0,
@@ -150,9 +141,9 @@ filter( Examples, Rule, FilteredExamples) :-
 
 %Procedura sprawdza jeden z warunków wstępnych przydatności zbudowanej reguły cząstkowej: czy reguła
 %eliminuje przynajmniej jeden przykład negatywny.
-suitable(rule(Conseq,Anteced),NegExamples):- 
-	member1(Example,NegExamples), 
-	not(covers(rule(Conseq,Anteced),NegExamples)).
+suitable(rule(Conseq,Anteced),NegExamples):-
+	member1(NegExample,NegExamples),
+  	not(covers(rule(Conseq,Anteced),NegExample)),!.
 
 
 build_expr(LastUsed,Expr,RetLastUsed) :-
@@ -240,10 +231,74 @@ not_fitting([], Args).
 gen_negative_examples(Positive, Conseq, NotFittingList):-
 	findall(NegExample, (functor(Conseq, Functor, N), gen_arg_list(N, GenArgs), not_fitting(Positive, GenArgs), NegExample =..[Functor| GenArgs] ),NotFittingList).
 
-learn(Conseq, Rules) :-
-	functor(Conseq, Functor,N),
-	findall(A, (known_fact(A) ,functor(A,Functor,N)),Positive),
-	gen_negative_examples(Positive, Conseq, Negative),
-	learn_rules(Positive, Negative, Conseq, 0, Rules).
+%learn(Conseq, Rules) :-
+%	functor(Conseq, Functor,N),
+%	findall(A, (known_fact(A) ,functor(A,Functor,N)),Positive),
+%	gen_negative_examples(Positive, Conseq, Negative),
+%	learn_rules(Positive, Negative, Conseq, 0, Rules).
+
 	
+learn(Predicate,Rules):-
+  Predicate =..[PredName|PredArgs],length(PredArgs,N),
+  get_idx(PredArgs,Idxs),
+  max_idx(Idxs,LastUsed),
+  findall(A, (known_fact(A) ,functor(A,PredName,N)),PosExamples),
+  findall(NegEx,find_neg(PredName,N,NegEx),NegExamples),
+  learn_rules(PosExamples,NegExamples,Predicate,LastUsed,Rules).
+  
+get_idx([],[]).
+get_idx([Arg|RestArg],[Idx|RestIdx]):-variables(L),element_at(Arg,L,Idx),get_idx(RestArg,RestIdx).
+
+max_idx([Idx], Idx).
+max_idx([Idx1|Rest],Max):-max_idx(Rest,Idx2),Idx1>Idx2,Max=Idx1.
+max_idx([Idx1|Rest],Max):-max_idx(Rest,Idx2),Idx1=<Idx2,Max=Idx2.
+
+
+find_pos(PredName,ArgLen,Expr):-
+  known_fact(Expr),Expr=..[PredName|Args],length(Args,N), N is ArgLen.
+
+find_neg(PredName,ArgLen,Expr):-
+  object_list(ObjList),make_perm(ObjList,ArgLen,Args),
+  Expr=..[PredName|Args],not(known_fact(Expr)).
+
+object_list(ObjList):-
+  findall(Expr,known_fact(Expr),ExprList),object_list_rec([],ExprList,ObjList).
+
+object_list_rec(Res,[],Res).
+object_list_rec(ObjList,[Expr|Rexpr],Result):-
+  Expr=..[_|Objs],add_to_list(ObjList,Objs,ParRes),object_list_rec(ParRes,Rexpr,Result).
+
+add_to_list(List,[X|RestToAdd],[X|FilteredList]):-
+  not(member1(X,List)),not(member1(X,RestToAdd)),add_to_list(List,RestToAdd,FilteredList).
+add_to_list(List,[X|RestToAdd],FilteredList):-
+  member1(X,RestToAdd),add_to_list(List,RestToAdd,FilteredList).
+add_to_list(List,[X|RestToAdd],FilteredList):-
+  member1(X,List),add_to_list(List,RestToAdd,FilteredList).
+
+add_to_list(List,[],List).
+
+make_perm(_,0,[]).
+make_perm(ObjList,N,[X|Rest]):-
+  N>0,member1(X,ObjList),delete(ObjList,X,NewObjList),N1 is N-1,make_perm(NewObjList,N1,Rest).
+
+/******************************************************************************************************************************************
+* element_at
+* Zwraca element na danej pozycji
+******************************************************************************************************************************************/
+
+element_at(X,[X|_],1).
+element_at(X,[_|L],K):-element_at(X,L,K1),K is K1+1.
+
+
+
+known_fact(rodzic(marek,damian)).
+known_fact(siostra(ania,marek)).
+known_fact(brat(janusz,marek)).
+known_fact(ciocia(ania,damian)).
+known_fact(wujek(janusz,damian)).
+
+predicate(rodzic, 2).
+predicate(siostra, 2).
+preducate(brat, 2).
+
 	
